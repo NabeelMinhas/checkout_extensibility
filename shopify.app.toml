@@ -1,7 +1,7 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
 client_id = "22cf7f8e9131174f420581aa792a8e01"
-application_url = "https://upgrading-measured-prostate-crack.trycloudflare.com"
+application_url = "https://harmony-mon-partner-antique.trycloudflare.com"
 embedded = true
 name = "checkout-extensibility"
 handle = "checkout-extensibility-75"
@@ -28,9 +28,9 @@ scopes = "write_products"
 
 [auth]
 redirect_urls = [
-  "https://upgrading-measured-prostate-crack.trycloudflare.com/auth/callback",
-  "https://upgrading-measured-prostate-crack.trycloudflare.com/auth/shopify/callback",
-  "https://upgrading-measured-prostate-crack.trycloudflare.com/api/auth/callback"
+  "https://harmony-mon-partner-antique.trycloudflare.com/auth/callback",
+  "https://harmony-mon-partner-antique.trycloudflare.com/auth/shopify/callback",
+  "https://harmony-mon-partner-antique.trycloudflare.com/api/auth/callback"
 ]
 
 [pos]

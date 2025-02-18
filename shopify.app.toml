@@ -1,7 +1,7 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
 client_id = "22cf7f8e9131174f420581aa792a8e01"
-application_url = "https://harmony-mon-partner-antique.trycloudflare.com"
+application_url = "https://abraham-phillips-socks-proposal.trycloudflare.com"
 embedded = true
 name = "checkout-extensibility"
 handle = "checkout-extensibility-75"
@@ -28,9 +28,9 @@ scopes = "write_products"
 
 [auth]
 redirect_urls = [
-  "https://harmony-mon-partner-antique.trycloudflare.com/auth/callback",
-  "https://harmony-mon-partner-antique.trycloudflare.com/auth/shopify/callback",
-  "https://harmony-mon-partner-antique.trycloudflare.com/api/auth/callback"
+  "https://abraham-phillips-socks-proposal.trycloudflare.com/auth/callback",
+  "https://abraham-phillips-socks-proposal.trycloudflare.com/auth/shopify/callback",
+  "https://abraham-phillips-socks-proposal.trycloudflare.com/api/auth/callback"
 ]
 
 [pos]

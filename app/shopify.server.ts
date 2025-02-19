@@ -25,6 +25,14 @@ const shopify = shopifyApp({
     : {}),
 });
 
+export async function storeShop(shop: string) {
+  await prisma.shop.upsert({
+    where: { shopifyDomain: shop },
+    update: {},
+    create: { shopifyDomain: shop },
+  });
+}
+
 export default shopify;
 export const apiVersion = ApiVersion.January25;
 export const addDocumentResponseHeaders = shopify.addDocumentResponseHeaders;

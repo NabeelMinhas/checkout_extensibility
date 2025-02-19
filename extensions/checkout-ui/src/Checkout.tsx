@@ -140,7 +140,7 @@ function LoadingSkeleton() {
             <SkeletonText inlineSize="small" />
           </BlockStack>
           <Button kind="secondary" disabled={true}>
-            Add
+            Add To Cart
           </Button>
         </InlineLayout>
       </BlockStack>
@@ -191,7 +191,7 @@ function ProductOffer({ product, i18n, adding, handleAddToCart, showError }: Pro
             <Text appearance="subdued">{renderPrice}</Text>
           </BlockStack>
           <Button kind="secondary" loading={adding} accessibilityLabel={`Add ${title} to cart`} onPress={() => handleAddToCart(variants.nodes[0].id)}>
-            Add
+            Add To Cart
           </Button>
         </InlineLayout>
       </BlockStack>

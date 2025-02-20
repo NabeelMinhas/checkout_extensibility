@@ -35,7 +35,7 @@ function App() {
   const applyCartLinesChange = useApplyCartLinesChange();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
-  const [adding, setAdding] = useState<boolean>(false);
+  const [actionStates, setActionStates] = useState<{[key: string]: boolean}>({});
   const [showError, setShowError] = useState<boolean>(false);
   const lines = useCartLines();
 
@@ -51,13 +51,13 @@ function App() {
   }, [showError]);
 
   async function handleAddToCart(variantId: string) {
-    setAdding(true);
+    setActionStates(prev => ({ ...prev, [variantId]: true }));
     const result = await applyCartLinesChange({
       type: "addCartLine",
       merchandiseId: variantId,
       quantity: 1,
     });
-    setAdding(false);
+    setActionStates(prev => ({ ...prev, [variantId]: false }));
     if (result.type === "error") {
       setShowError(true);
     }
@@ -66,16 +66,9 @@ function App() {
   async function fetchUpsellProducts() {
     setLoading(true);
     try {
-      const baseUrl = new URL(extension.scriptUrl).origin
+      const baseUrl = new URL(extension.scriptUrl).origin;
       const shopifyDomain = shop.myshopifyDomain;
-      const { data: shopData } = await query<{ shop: { myshopifyDomain: string } }>(
-        `query {
-          shop {
-            myshopifyDomain
-          }
-        }`
-      );
-
+      
       const response = await fetch(`${baseUrl}/api/upsell?shopDomain=${shopifyDomain}`, {
         method: "GET",
       });
@@ -91,11 +84,8 @@ function App() {
         return;
       }
 
-      // const productIds = upsellItems.map((item) => `gid://shopify/Product/${item.shopifyProductId}`);
       const productIds = upsellItems.map((item) => {
         const shopifyId = item.shopifyProductId;
-      
-        // Check if ID already contains 'gid://shopify/Product/'
         return shopifyId.startsWith("gid://shopify/Product/")
           ? shopifyId
           : `gid://shopify/Product/${shopifyId}`;
@@ -132,10 +122,6 @@ function App() {
         throw new Error(JSON.stringify(errors));
       }
 
-      if (!data || !data.nodes) {
-        throw new Error("GraphQL request returned no data");
-      }
-
       setProducts(Array.isArray(data.nodes) ? data.nodes.filter(Boolean) : []);
     } catch (error) {
       setProducts([]);
@@ -152,20 +138,41 @@ function App() {
     return null;
   }
 
-  const productsOnOffer = getProductsOnOffer(lines, products);
+  // Get products that aren't already in the cart
+  const availableProducts = products.filter((product) => 
+    !product.variants.nodes.some(({ id }) => 
+      lines.some((line: any) => line.merchandise.id === id)
+    )
+  );
 
-  if (!productsOnOffer.length) {
+  if (availableProducts.length === 0) {
     return null;
   }
 
   return (
-    <ProductOffer
-      product={productsOnOffer[0]}
-      i18n={i18n}
-      adding={adding}
-      handleAddToCart={handleAddToCart}
-      showError={showError}
-    />
+    <BlockStack spacing="loose">
+      <Divider />
+      <Heading level={2}>You might also like</Heading>
+      
+      <BlockStack spacing="loose">
+        
+          {availableProducts.map((product) => (
+            <ProductCard
+              key={product.id}
+              product={product}
+              i18n={i18n}
+              loading={actionStates[product.variants.nodes[0].id] || false}
+              onAction={() => handleAddToCart(product.variants.nodes[0].id)}
+            />
+          ))}
+      </BlockStack>
+
+      {showError && (
+        <Banner status="critical">
+          There was an issue adding this product. Please try again.
+        </Banner>
+      )}
+    </BlockStack>
   );
 }
 
@@ -190,60 +197,44 @@ function LoadingSkeleton() {
   );
 }
 
-function getProductsOnOffer(lines: any, products: Product[]) {
-  const cartLineProductVariantIds = lines.map((item: any) => item.merchandise.id);
-  return products.filter((product) => {
-    return !product.variants.nodes.some(({ id }) => cartLineProductVariantIds.includes(id));
-  });
-}
-
-interface ProductOfferProps {
+interface ProductCardProps {
   product: Product;
   i18n: any;
-  adding: boolean;
-  handleAddToCart: (variantId: string) => void;
-  showError: boolean;
+  loading: boolean;
+  onAction: () => void;
 }
 
-function ProductOffer({ product, i18n, adding, handleAddToCart, showError }: ProductOfferProps) {
+function ProductCard({ product, i18n, loading, onAction }: ProductCardProps) {
   const { images, title, variants } = product;
   const renderPrice = i18n.formatCurrency(variants.nodes[0].price.amount);
-  const imageUrl =
-    images.nodes[0]?.url ??
-    "https://cdn.shopify.com/s/files/1/0533/2089/files/placeholder-images-image_medium.png?format=webp&v=1530129081";
+  const imageUrl = images.nodes[0]?.url ?? "https://cdn.shopify.com/s/files/1/0533/2089/files/placeholder-images-image_medium.png?format=webp&v=1530129081";
 
   return (
-    <BlockStack spacing="loose">
-      <Divider />
-      <Heading level={2}>You might also like</Heading>
-      <BlockStack spacing="loose">
-        <InlineLayout spacing="base" columns={[64, "fill", "auto"]} blockAlignment="center">
-          <Image
-            border="base"
-            borderWidth="base"
-            borderRadius="loose"
-            source={imageUrl}
-            accessibilityDescription={title}
-            aspectRatio={1}
-          />
-          <BlockStack spacing="none">
-            <Text size="medium" emphasis="bold">
-              {title}
-            </Text>
-            <Text appearance="subdued">{renderPrice}</Text>
-          </BlockStack>
-          <Button kind="secondary" loading={adding} accessibilityLabel={`Add ${title} to cart`} onPress={() => handleAddToCart(variants.nodes[0].id)}>
-            Add To Cart
-          </Button>
-        </InlineLayout>
-      </BlockStack>
-      {showError && <ErrorBanner />}
+    <BlockStack spacing="base">
+      <InlineLayout spacing="base" columns={[64, "fill", "auto"]} blockAlignment="center">
+        <Image
+          border="base"
+          borderWidth="base"
+          borderRadius="loose"
+          source={imageUrl}
+          accessibilityDescription={title}
+          aspectRatio={1}
+        />
+        <BlockStack spacing="none">
+          <Text size="medium" emphasis="bold">
+            {title}
+          </Text>
+          <Text appearance="subdued">{renderPrice}</Text>
+        </BlockStack>
+        <Button
+          kind="secondary"
+          loading={loading}
+          accessibilityLabel={`Add ${title} to cart`}
+          onPress={onAction}
+        >
+          Add To Cart
+        </Button>
+      </InlineLayout>
     </BlockStack>
-  );
-}
-
-function ErrorBanner() {
-  return (
-    <Banner status="critical">There was an issue adding this product. Please try again.</Banner>
   );
 }

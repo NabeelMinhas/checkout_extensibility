@@ -11,6 +11,7 @@ import {
   Grid,
   Checkbox,
   Banner,
+  InlineStack,
 } from "@shopify/polaris";
 import { TitleBar } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
@@ -30,11 +31,19 @@ interface ProductEdge {
 
 interface LoaderData {
   products: { edges: ProductEdge[] };
+  existingProducts: string[];
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  await authenticate.admin(request);
-  const { admin } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
+
+  // Fetch existing products from database
+  const shop = await prisma.shop.findUnique({
+    where: { shopifyDomain: session.shop },
+    include: { upsellItems: true },
+  });
+
+  const existingProducts = shop?.upsellItems.map(item => item.shopifyProductId) || [];
 
   let allProducts: ProductEdge[] = [];
   let hasNextPage = true;
@@ -70,46 +79,58 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }
   }
 
-  return { products: { edges: allProducts } };
+  return { 
+    products: { edges: allProducts },
+    existingProducts
+  };
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const formData = await request.formData();
   const { session } = await authenticate.admin(request);
-  const selectedProductIds = formData.getAll("selectedProducts") as string[];
+  const intent = formData.get("intent") as string;
+  const productIds = formData.getAll("selectedProducts") as string[];
 
-  const shopDomain = session.shop;
   const shop = await prisma.shop.findUnique({
-    where: {
-      shopifyDomain: shopDomain,
-    },
+    where: { shopifyDomain: session.shop },
   });
 
   if (!shop) {
-    return { error: `Shop with domain ${shopDomain} not found` };
-  }
-
-  if (selectedProductIds.length === 0) {
-    return { error: "No products selected." };
+    return { error: `Shop with domain ${session.shop} not found` };
   }
 
   try {
-    await prisma.upsellItem.createMany({
-      data: selectedProductIds.map((id) => ({
-        shopifyProductId: id,
-        shopId: shop.id
-      })),
-    });
-    return { success: "Products saved successfully!" };
+    if (intent === "delete") {
+      await prisma.upsellItem.deleteMany({
+        where: {
+          shopId: shop.id,
+          shopifyProductId: { in: productIds }
+        },
+      });
+      return { success: "Products removed successfully!" };
+    } else {
+      if (productIds.length === 0) {
+        return { error: "No products selected." };
+      }
+
+      await prisma.upsellItem.createMany({
+        data: productIds.map((id) => ({
+          shopifyProductId: id,
+          shopId: shop.id
+        }))
+      });
+      return { success: "Products saved successfully!" };
+    }
   } catch (error) {
-    return { error: "An error occurred while saving products." };
+    return { error: "An error occurred while processing products." };
   }
 };
 
 export default function Index() {
-  const { products } = useLoaderData<LoaderData>();
+  const { products, existingProducts } = useLoaderData<LoaderData>();
   const fetcher = useFetcher();
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
+  const [showExisting, setShowExisting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [isError, setIsError] = useState<boolean>(false);
 
@@ -128,21 +149,65 @@ export default function Index() {
     } else if (fetcher.data?.success) {
       setMessage(fetcher.data.success);
       setIsError(false);
+      // Clear selections after successful action
+      setSelectedProducts([]);
     }
   }, [fetcher.data]);
+
+  const filteredProducts = products.edges.filter(({ node }) => 
+    showExisting 
+      ? existingProducts.includes(node.id)
+      : !existingProducts.includes(node.id)
+  );
 
   return (
     <Page>
       <TitleBar title="Products" />
       <Layout>
         <Layout.Section>
+          {message && (
+            <Banner status={isError ? "critical" : "success"} onDismiss={() => setMessage(null)}>
+              <p>{message}</p>
+            </Banner>
+          )}
+
           <Card>
             <BlockStack gap="400">
-              <Text as="h2" variant="headingLg">Your Products</Text>
+              <InlineStack align="space-between">
+                <Text as="h2" variant="headingLg">
+                  {showExisting ? "Selected Upsell Products" : "Available Products"}
+                </Text>
+                <InlineStack gap="300">
+    
+                  {selectedProducts.length > 0 && (
+                    <fetcher.Form method="post">
+                      {selectedProducts.map((id) => (
+                        <input 
+                          key={id} 
+                          type="hidden" 
+                          name="selectedProducts" 
+                          value={id} 
+                        />
+                      ))}
+                      <input 
+                        type="hidden" 
+                        name="intent" 
+                        value={showExisting ? "delete" : "save"} 
+                      />
+                      <Button submit variant="primary">
+                        {showExisting ? "Delete Upsell Items" : "Create Upsell Items"}
+                      </Button>
+                    </fetcher.Form>
+                  )}
+                  <Button onClick={() => setShowExisting(!showExisting)}>
+                    {showExisting ? "Show Products" : "Show Upsell Items"}
+                  </Button>
+                </InlineStack>
+              </InlineStack>
 
-              {products.edges.length > 0 ? (
+              {filteredProducts.length > 0 ? (
                 <Grid>
-                  {products.edges.map(({ node }) => (
+                  {filteredProducts.map(({ node }) => (
                     <Grid.Cell 
                       key={node.id} 
                       columnSpan={{ xs: 6, sm: 4, md: 3, lg: 3, xl: 2 }}
@@ -180,29 +245,11 @@ export default function Index() {
                   ))}
                 </Grid>
               ) : (
-                <Text as="p" variant="bodyMd">No products found.</Text>
-              )}
-
-              {selectedProducts.length > 0 && (
-                <fetcher.Form method="post">
-                  {selectedProducts.map((id) => (
-                    <input 
-                      key={id} 
-                      type="hidden" 
-                      name="selectedProducts" 
-                      value={id} 
-                    />
-                  ))}
-                  <Button submit variant="primary">
-                    Save Selected Products
-                  </Button>
-                </fetcher.Form>
-              )}
-
-              {message && (
-                <Banner status={isError ? "critical" : "success"}>
-                  <p>{message}</p>
-                </Banner>
+                <Text as="p" variant="bodyMd">
+                  {showExisting 
+                    ? "No products have been selected as upsell items." 
+                    : "No available products found."}
+                </Text>
               )}
             </BlockStack>
           </Card>

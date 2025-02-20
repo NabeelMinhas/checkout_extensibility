@@ -1,5 +1,8 @@
 # Shopify Upsell Integration - README
 
+## Demo Video
+https://www.loom.com/share/a4e3c776135c4535ba46c9cf3bb5afc9?sid=3197390f-bd01-4ffb-8e23-7eb2907b2b82
+
 ## Overview
 
 The Shopify Upsell Integration is a powerful extension designed to help store owners boost their sales by offering upsell items during the checkout process. With this app, store owners can select specific products to be displayed as upsell recommendations on the checkout page, encouraging customers to add more items to their cart with a single click.

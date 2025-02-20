@@ -34,6 +34,10 @@ export default async function handleRequest(
           const stream = createReadableStreamFromReadable(body);
 
           responseHeaders.set("Content-Type", "text/html");
+          responseHeaders.set("Access-Control-Allow-Origin", "*");
+          responseHeaders.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+          responseHeaders.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+
           resolve(
             new Response(stream, {
               headers: responseHeaders,
@@ -47,7 +51,6 @@ export default async function handleRequest(
         },
         onError(error) {
           responseStatusCode = 500;
-          console.error(error);
         },
       }
     );

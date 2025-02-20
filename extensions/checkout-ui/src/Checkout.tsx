@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   reactExtension,
   Divider,
@@ -28,11 +28,10 @@ interface Product {
   variants: { nodes: ProductVariant[] };
 }
 
-// Set up the entry point for the extension
 export default reactExtension("purchase.checkout.block.render", () => <App />);
 
 function App() {
-  const { query, i18n } = useApi();
+  const { query, i18n, shop, extension } = useApi();
   const applyCartLinesChange = useApplyCartLinesChange();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
@@ -41,7 +40,7 @@ function App() {
   const lines = useCartLines();
 
   useEffect(() => {
-    fetchProducts();
+    fetchUpsellProducts();
   }, []);
 
   useEffect(() => {
@@ -61,17 +60,51 @@ function App() {
     setAdding(false);
     if (result.type === "error") {
       setShowError(true);
-      console.error(result.message);
     }
   }
 
-  async function fetchProducts() {
+  async function fetchUpsellProducts() {
     setLoading(true);
     try {
-      const { data } = await query<{ products: { nodes: Product[] } }>(
-        `query ($first: Int!) {
-          products(first: $first) {
-            nodes {
+      const baseUrl = new URL(extension.scriptUrl).origin
+      const shopifyDomain = shop.myshopifyDomain;
+      const { data: shopData } = await query<{ shop: { myshopifyDomain: string } }>(
+        `query {
+          shop {
+            myshopifyDomain
+          }
+        }`
+      );
+
+      const response = await fetch(`${baseUrl}/api/upsell?shopDomain=${shopifyDomain}`, {
+        method: "GET",
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch upsell items");
+      }
+
+      const upsellItems = await response.json();
+
+      if (!Array.isArray(upsellItems) || upsellItems.length === 0) {
+        setProducts([]);
+        return;
+      }
+
+      // const productIds = upsellItems.map((item) => `gid://shopify/Product/${item.shopifyProductId}`);
+      const productIds = upsellItems.map((item) => {
+        const shopifyId = item.shopifyProductId;
+      
+        // Check if ID already contains 'gid://shopify/Product/'
+        return shopifyId.startsWith("gid://shopify/Product/")
+          ? shopifyId
+          : `gid://shopify/Product/${shopifyId}`;
+      });
+
+      const { data, errors } = await query<{ nodes: Product[] }>(
+        `query ($ids: [ID!]!) {
+          nodes(ids: $ids) {
+            ... on Product {
               id
               title
               images(first: 1) {
@@ -91,12 +124,21 @@ function App() {
           }
         }`,
         {
-          variables: { first: 5 },
+          variables: { ids: productIds },
         }
       );
-      setProducts(data.products.nodes);
+
+      if (errors) {
+        throw new Error(JSON.stringify(errors));
+      }
+
+      if (!data || !data.nodes) {
+        throw new Error("GraphQL request returned no data");
+      }
+
+      setProducts(Array.isArray(data.nodes) ? data.nodes.filter(Boolean) : []);
     } catch (error) {
-      console.error(error);
+      setProducts([]);
     } finally {
       setLoading(false);
     }

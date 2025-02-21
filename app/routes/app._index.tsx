@@ -52,7 +52,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   while (hasNextPage) {
     const query = `
       query GetProducts($cursor: String) {
-        products(first: 250, after: $cursor) {
+        products(first: 250, after: $cursor, query: "status:ACTIVE") {
           edges {
             node {
               id
